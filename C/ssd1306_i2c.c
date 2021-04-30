@@ -232,22 +232,18 @@ void LCD_DisplayTemperature(void)
   unsigned char symbol=0;
   char ip[20] = {0};
   unsigned int temp=0;
-  FILE * fp;
-  unsigned char  buffer[80] = {0};
+  unsigned char  buffer[4] = {0};
+  char hostname[16] = "";
+
   temp=Obaintemperature();                  //Gets the temperature of the CPU
-  fp=popen("top -bn1 | grep load | awk '{printf \"%.2f\", $(NF-2)}'","r");    //Gets the load on the CPU
-  fgets(buffer, sizeof (buffer),fp);                                    //Read the CPU load
-  pclose(fp);
-  buffer[3]='\0';        
-  strcpy(ip,GetIpAddress());   //Get the IP address of the device's wireless network card
-  symbol=strcmp(IPSource,ip);
-  if(symbol!=0)
-  {
-    strcpy(IPSource,ip);
-  }
+  GetCpuLoad(buffer);
+  gethostname(hostname, 16);
+
   OLED_Clear();                                        //Remove the interface
   OLED_DrawBMP(0,0,128,4,BMP,0);
-  OLED_ShowString(30,0,IPSource,8);          //Send the IP address to the lower machine
+
+  OLED_ShowString((128-8*strlen(hostname))/2,0,hostname,8); 
+
   if(temp>10)                                                  
   {
     OLED_ShowChar(62,3,temp/10+'0',8);                        //According to the temperature
@@ -257,7 +253,8 @@ void LCD_DisplayTemperature(void)
   {
     OLED_ShowChar(70,3,temp+'0',8);
   }
-  OLED_ShowString(87,3,buffer,8);                        //Display CPU load
+
+  OLED_ShowString(91,3,buffer,8);                        //Display CPU load
 }
 
 unsigned char Obaintemperature(void)
@@ -273,6 +270,30 @@ unsigned char Obaintemperature(void)
     fclose(fd);
 
     return temp/1000;
+
+}
+
+void GetCpuLoad(unsigned char *load_pct)
+{
+    FILE * fp;
+    unsigned char  buffer[80] = {0};
+    float load_f;
+    int nproc;
+    
+    fp=popen("top -bn1 | grep load | awk '{printf \"%.2f\", $(NF-2)}'","r");    //Gets the load on the CPU
+    fgets(buffer, sizeof (buffer),fp);                                    //Read the CPU load
+    pclose(fp);
+    buffer[4]='\0';        
+
+    sscanf(buffer, "%f", &load_f);
+
+    fp=popen("nproc","r");    //Gets the load on the CPU
+    fgets(buffer, sizeof (buffer),fp);                                    //Read the CPU load
+    pclose(fp);
+
+    sscanf(buffer, "%d", &nproc);
+
+    sprintf(load_pct, "%3d", (int) (load_f / nproc * 100.0));
 
 }
 
@@ -357,6 +378,25 @@ void LCD_DisplaySdMemory(void)
 }
 
 /*
+*  LCD display IP address
+*/
+void LCD_DisplayIPAddr(void)
+{
+  unsigned char symbol=0;
+  char ip[20] = {0};
+
+  strcpy(ip,GetIpAddress());   //Get the IP address of the device's wireless network card
+  symbol=strcmp(IPSource,ip);
+  if(symbol!=0)
+  {
+    strcpy(IPSource,ip);
+  }
+
+  OLED_ClearLint(2,4);
+  OLED_ShowString((128-8*strlen(IPSource))/2,3,IPSource,8); 
+}
+
+/*
 *According to the information
 */
 void LCD_Display(unsigned char symbol)
@@ -371,6 +411,9 @@ void LCD_Display(unsigned char symbol)
     break;
     case 2:
       LCD_DisplaySdMemory();
+    break;
+    case 3:
+      LCD_DisplayIPAddr();
     break;
     default:
     break;
@@ -394,7 +437,7 @@ char* GetIpAddress(void)
     ifr.ifr_addr.sa_family = AF_INET;
     
     /* I want IP address attached to "eth0" */
-    strncpy(ifr.ifr_name, "wlan0", IFNAMSIZ-1);
+    strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
     
     ioctl(fd, SIOCGIFADDR, &ifr);
     

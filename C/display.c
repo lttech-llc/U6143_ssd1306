@@ -21,7 +21,7 @@ void main(void)
     sleep(1);
     sleep(1);
     symbol++;
-    if(symbol==3)
+    if(symbol==4)
     {
       symbol=0;
     }
